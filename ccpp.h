@@ -726,11 +726,14 @@ bool ccpp::processor::test_condition()
 
 	// Perform AND conditions first
 	for (int i = (int)conditions.size() - 1; i >= 1; i--) {
-		if (conditions[i] & Match_OpAnd) {
-			if ((conditions[i] & Match_Pass) && (conditions[i - 1] & Match_Pass)) {
-				conditions[i - 1] |= Match_Pass;
+		uint32_t &rhs = conditions[i];
+		uint32_t &lhs = conditions[i - 1];
+
+		if (rhs & Match_OpAnd) {
+			if ((rhs & Match_Pass) && (lhs & Match_Pass)) {
+				lhs |= Match_Pass;
 			} else {
-				conditions[i - 1] &= ~Match_Pass;
+				lhs &= ~Match_Pass;
 			}
 			conditions.erase(conditions.begin() + i);
 		}
@@ -738,11 +741,14 @@ bool ccpp::processor::test_condition()
 
 	// Perform OR conditions last
 	for (int i = (int)conditions.size() - 1; i >= 1; i--) {
-		if (conditions[i] & Match_OpOr) {
-			if ((conditions[i] & Match_Pass) || (conditions[i - 1] & Match_Pass)) {
-				conditions[i - 1] |= Match_Pass;
+		uint32_t &rhs = conditions[i];
+		uint32_t &lhs = conditions[i - 1];
+
+		if (rhs & Match_OpOr) {
+			if ((rhs & Match_Pass) || (lhs & Match_Pass)) {
+				lhs |= Match_Pass;
 			} else {
-				conditions[i - 1] &= ~Match_Pass;
+				lhs &= ~Match_Pass;
 			}
 			conditions.erase(conditions.begin() + i);
 		}
