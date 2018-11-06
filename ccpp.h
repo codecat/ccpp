@@ -68,6 +68,7 @@
 
 #include <vector>
 #include <stack>
+#include <cstdint>
 
 namespace ccpp
 {
@@ -83,7 +84,7 @@ namespace ccpp
 		size_t m_column;
 
 		std::vector<const char*> m_defines;
-		std::stack<int> m_stack;
+		std::stack<uint32_t> m_stack;
 
 	public:
 		processor();
@@ -103,6 +104,7 @@ namespace ccpp
 		void expect_eol();
 		void consume_line();
 
+		bool is_erasing();
 		void overwrite(char* p, size_t len);
 	};
 }
@@ -185,7 +187,7 @@ static size_t lex_expect(char* p, char* pEnd, ELexType expected_type)
 	size_t len = lex(p, pEnd, type);
 
 	if (type != expected_type) {
-		CCPP_ERROR("Unexpected '%c', was expecting a %s", *p, lex_type_name(expected_type));
+		CCPP_ERROR("Unexpected '%c' of type %s, was expecting a %s", *p, lex_type_name(type), lex_type_name(expected_type));
 		return 0;
 	}
 
@@ -193,6 +195,21 @@ static size_t lex_expect(char* p, char* pEnd, ELexType expected_type)
 }
 
 char ccpp::character = '#';
+
+enum
+{
+	// Contents must pass
+	Scope_Passing = (1 << 0),
+
+	// Contents must be erased
+	Scope_Erasing = (1 << 1),
+
+	// Contents are inside of an else directive
+	Scope_Else = (1 << 2),
+
+	// Contents are deep and should be ignored
+	Scope_Deep = (1 << 3),
+};
 
 ccpp::processor::processor()
 {
@@ -255,7 +272,7 @@ void ccpp::processor::process(char* buffer, size_t len)
 	m_pEnd = buffer + len;
 
 	while (m_p < m_pEnd) {
-		bool isErasing = (m_stack.size() > 0 && m_stack.top() == 0);
+		bool isErasing = (m_stack.size() > 0 && (m_stack.top() & Scope_Erasing));
 
 		if (*m_p == '\n') {
 			m_column = 0;
@@ -357,8 +374,8 @@ void ccpp::processor::process(char* buffer, size_t len)
 				// #if <condition>
 
 				if (isErasing) {
-					// Just consume the line and push 0
-					m_stack.push(0);
+					// Just consume the line and push 
+					m_stack.push(Scope_Erasing);
 					consume_line();
 
 				} else {
@@ -374,11 +391,35 @@ void ccpp::processor::process(char* buffer, size_t len)
 
 					// Push to the stack
 					if (conditionPassed) {
-						m_stack.push(1);
+						m_stack.push(Scope_Passing);
 					} else {
-						m_stack.push(0);
+						m_stack.push(Scope_Erasing);
 					}
 				}
+
+			} else if (!strcmp(wordCommand, "else")) {
+				// #else
+
+				// Get top of stack
+				uint32_t &top = m_stack.top();
+
+				// Error out if we're already in an else directive
+				if (top & Scope_Else) {
+					CCPP_ERROR("Unexpected #else on line %d", (int)m_line);
+
+				} else {
+					if (top & Scope_Passing) {
+						// If we're passing, set scope to erasing else
+						top = Scope_Erasing | Scope_Else;
+
+					} else if (top & Scope_Erasing) {
+						// If we're erasing, set scope to passing else
+						top = Scope_Passing | Scope_Else;
+					}
+				}
+
+				// Expect end of line
+				expect_eol();
 
 			} else if (!strcmp(wordCommand, "endif")) {
 				// #endif
