@@ -116,7 +116,6 @@ namespace ccpp
 		void expect_eol();
 		void consume_line();
 
-		bool is_erasing();
 		void overwrite(char* p, size_t len);
 	};
 }
