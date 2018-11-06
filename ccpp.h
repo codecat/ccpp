@@ -272,7 +272,15 @@ void ccpp::processor::process(char* buffer, size_t len)
 	m_pEnd = buffer + len;
 
 	while (m_p < m_pEnd) {
-		bool isErasing = (m_stack.size() > 0 && (m_stack.top() & Scope_Erasing));
+		bool isErasing = false;
+		bool isDeep = false;
+
+		if (m_stack.size() > 0) {
+			const uint32_t &scope = m_stack.top();
+
+			isErasing = (scope & Scope_Erasing);
+			isDeep = (scope & Scope_Deep);
+		}
 
 		if (*m_p == '\n') {
 			m_column = 0;
@@ -374,8 +382,8 @@ void ccpp::processor::process(char* buffer, size_t len)
 				// #if <condition>
 
 				if (isErasing) {
-					// Just consume the line and push 
-					m_stack.push(Scope_Erasing);
+					// Just consume the line and push erasing at deep level
+					m_stack.push(Scope_Erasing | Scope_Deep);
 					consume_line();
 
 				} else {
@@ -403,23 +411,29 @@ void ccpp::processor::process(char* buffer, size_t len)
 				// Get top of stack
 				uint32_t &top = m_stack.top();
 
-				// Error out if we're already in an else directive
-				if (top & Scope_Else) {
-					CCPP_ERROR("Unexpected #else on line %d", (int)m_line);
+				if (isErasing && isDeep) {
+					// Just consume the line if we're deep
+					consume_line();
 
 				} else {
-					if (top & Scope_Passing) {
-						// If we're passing, set scope to erasing else
-						top = Scope_Erasing | Scope_Else;
+					// Error out if we're already in an else directive
+					if (top & Scope_Else) {
+						CCPP_ERROR("Unexpected #else on line %d", (int)m_line);
 
-					} else if (top & Scope_Erasing) {
-						// If we're erasing, set scope to passing else
-						top = Scope_Passing | Scope_Else;
+					} else {
+						if (top & Scope_Passing) {
+							// If we're passing, set scope to erasing else
+							top = Scope_Erasing | Scope_Else;
+
+						} else if (top & Scope_Erasing) {
+							// If we're erasing, set scope to passing else
+							top = Scope_Passing | Scope_Else;
+						}
 					}
-				}
 
-				// Expect end of line
-				expect_eol();
+					// Expect end of line
+					expect_eol();
+				}
 
 			} else if (!strcmp(wordCommand, "endif")) {
 				// #endif
