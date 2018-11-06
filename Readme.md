@@ -1,6 +1,16 @@
 # Codecat Preprocessor
 A general purpose single-header preprocessor library.
 
+## Supported directives
+The following directives are currently supported:
+
+* `#define <word>`
+* `#undef <word>`
+* `#if <condition>`
+* `#elif <condition>`
+* `#else`
+* `#endif`
+
 ## Example usage:
 ```cpp
 	static char* read_file() { /* ... */ }
