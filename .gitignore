@@ -1,0 +1,8 @@
+# Temporary testing file
+main.cpp
+
+# Temporary Visual Studio project garbage
+*.vcxproj*
+[Dd]ebug/
+[Rr]elease/
+x64/
