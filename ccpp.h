@@ -159,11 +159,7 @@ static size_t lex(char* p, char* pEnd, ELexType &type)
 
 	char* pStart = p;
 
-	if (*p == '\n') {
-		type = ELexType::Newline;
-		p++;
-
-	} else if (*p == '"') {
+	if (*p == '"') {
 		type = ELexType::String;
 
 		while (p < pEnd) {
@@ -181,13 +177,16 @@ static size_t lex(char* p, char* pEnd, ELexType &type)
 	} else {
 		while (p < pEnd) {
 			char c = *p;
-			bool isWhitespace = (c == ' ' || c == '\t' || c == '\r');
+			bool isWhitespace = (c == ' ' || c == '\t');
+			bool isNewline = (c == '\r' || c == '\n');
 			bool isAlphaNum = ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_');
 			bool isOperator = (c == '!' || c == '&' || c == '|' || c == '(' || c == ')');
 
 			if (type == ELexType::None) {
 				if (isWhitespace) {
 					type = ELexType::Whitespace;
+				} else if (isNewline) {
+					type = ELexType::Newline;
 				} else if (isAlphaNum) {
 					type = ELexType::Word;
 				} else if (isOperator) {
@@ -196,6 +195,8 @@ static size_t lex(char* p, char* pEnd, ELexType &type)
 
 			} else {
 				if (type == ELexType::Whitespace && !isWhitespace) {
+					break;
+				} else if (type == ELexType::Newline && !isNewline) {
 					break;
 				} else if (type == ELexType::Word && !isAlphaNum) {
 					break;
