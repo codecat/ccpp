@@ -38,6 +38,8 @@
  *   #define <word>
  *   #undef <word>
  *   #if <condition>
+ *   #else
+ *   #elif <condition>
  *   #endif
  *
  *
@@ -207,8 +209,11 @@ enum
 	// Contents are inside of an else directive
 	Scope_Else = (1 << 2),
 
+	// Contents are inside of an else if directive
+	Scope_ElseIf = (1 << 3),
+
 	// Contents are deep and should be ignored
-	Scope_Deep = (1 << 3),
+	Scope_Deep = (1 << 4),
 };
 
 ccpp::processor::processor()
@@ -408,14 +413,14 @@ void ccpp::processor::process(char* buffer, size_t len)
 			} else if (!strcmp(wordCommand, "else")) {
 				// #else
 
-				// Get top of stack
-				uint32_t &top = m_stack.top();
-
 				if (isErasing && isDeep) {
 					// Just consume the line if we're deep
 					consume_line();
 
 				} else {
+					// Get top of stack
+					uint32_t &top = m_stack.top();
+
 					// Error out if we're already in an else directive
 					if (top & Scope_Else) {
 						CCPP_ERROR("Unexpected #else on line %d", (int)m_line);
@@ -433,6 +438,49 @@ void ccpp::processor::process(char* buffer, size_t len)
 
 					// Expect end of line
 					expect_eol();
+				}
+
+			} else if (!strcmp(wordCommand, "elif")) {
+				// #elif <condition>
+
+				if (isErasing && isDeep) {
+					// Just consume the line if we're deep
+					consume_line();
+
+				} else {
+					// Get top of stack
+					uint32_t &top = m_stack.top();
+
+					// Error out if we're already in an else directive
+					if (top & Scope_Else) {
+						CCPP_ERROR("Unexpected #elif on line %d", (int)m_line);
+						consume_line();
+
+					} else {
+						if (top & Scope_Passing) {
+							// If we're already passing, we'll erase anything below and set the deep flag to ignore the rest
+							top = Scope_Erasing | Scope_ElseIf | Scope_Deep;
+							consume_line();
+
+						} else {
+							// Expect some whitespace
+							size_t lenCommandWhitespace = lex_expect(m_p, m_pEnd, ELexType::Whitespace);
+							if (lenCommandWhitespace == 0) {
+								continue;
+							}
+							m_p += lenCommandWhitespace;
+
+							// Expect a condition
+							bool conditionPassed = test_condition();
+
+							// Update the scope
+							if (conditionPassed) {
+								top = Scope_Passing | Scope_ElseIf;
+							} else {
+								top = Scope_Erasing | Scope_ElseIf;
+							}
+						}
+					}
 				}
 
 			} else if (!strcmp(wordCommand, "endif")) {
