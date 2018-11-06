@@ -786,7 +786,7 @@ void ccpp::processor::overwrite(char* p, size_t len)
 {
 	char* pEnd = p + len;
 	for (; p < pEnd; p++) {
-		if (*p != '\n') {
+		if (*p != '\r' && *p != '\n') {
 			*p = ' ';
 		}
 	}
