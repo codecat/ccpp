@@ -123,11 +123,16 @@ namespace ccpp
 
 #if defined(CCPP_IMPL)
 
+#include <string>
 #include <cstring>
 #include <malloc.h>
 
 #ifndef CCPP_ERROR
 #define CCPP_ERROR(error, ...) printf("[CCPP ERROR] " error "\n", __VA_ARGS__)
+#endif
+
+#ifndef CCPP_ASSERT
+#define CCPP_ASSERT(cond) if (!(cond)) { CCPP_ERROR("Assertion failed: '%s' on line %d", #cond, __LINE__); }
 #endif
 
 enum class ELexType
@@ -225,6 +230,25 @@ static size_t lex_expect(char* p, char* pEnd, ELexType expected_type)
 	return len;
 }
 
+// Same as lex(), except skips whitespace and outputs start and length of the symbol
+static size_t lex_next(char* p, char* pEnd, ELexType &type, char** start, size_t* len)
+{
+	ELexType t;
+	size_t l = lex(p, pEnd, t);
+	*len = l;
+
+	if (t == ELexType::Whitespace) {
+		p += l;
+		size_t l2 = lex(p, pEnd, t);
+		*len = l2;
+		l += l2;
+	}
+
+	type = t;
+	*start = p;
+	return l;
+}
+
 char ccpp::character = '#';
 
 enum
@@ -243,6 +267,18 @@ enum
 
 	// Contents are deep and should be ignored
 	Scope_Deep = (1 << 4),
+};
+
+enum
+{
+	// The match passed
+	Match_Pass = (1 << 0),
+
+	// Should be matched as AND with previous entry
+	Match_OpAnd = (1 << 1),
+
+	// Should be matched as OR with previous entry
+	Match_OpOr = (1 << 2),
 };
 
 ccpp::processor::processor()
@@ -643,40 +679,78 @@ void ccpp::processor::process(char* buffer, size_t len)
 bool ccpp::processor::test_condition()
 {
 	//TODO:
-	// &&
-	// ||
 	// ()
 
-	bool mustEqual = true;
+	std::vector<uint32_t> conditions;
 
-	ELexType type;
-	size_t len = lex(m_p, m_pEnd, type);
+	uint32_t opFlag = 0;
 
-	if (type == ELexType::Operator) {
-		// If there's an operator, check which it is
-		if (*m_p == '!') {
-			// "Not" operator negates the condition
-			mustEqual = false;
+	while (true) {
+		ELexType type;
+		char* symStart;
+		size_t symLength;
+
+		m_p += lex_next(m_p, m_pEnd, type, &symStart, &symLength);
+
+		if (type == ELexType::Newline) {
+			break;
 		}
 
-		// Continue reading
-		m_p += len;
+		uint32_t cond = 0;
+		bool mustEqual = true;
+
+		if (type == ELexType::Operator) {
+			if (*symStart == '!') {
+				mustEqual = false;
+			} else if (!strncmp(symStart, "&&", symLength)) {
+				opFlag = Match_OpAnd;
+			} else if (!strncmp(symStart, "||", symLength)) {
+				opFlag = Match_OpOr;
+			} else {
+				CCPP_ERROR("Unexpected operator '%c' in condition on line %d", *symStart, (int)m_line);
+			}
+			m_p += lex_next(m_p, m_pEnd, type, &symStart, &symLength);
+		}
+
+		if (type != ELexType::Word) {
+			CCPP_ERROR("Unexpected %s in condition on line %d", lex_type_name(type), (int)m_line);
+		} else {
+			std::string word(symStart, symLength);
+			if (has_define(word.c_str()) == mustEqual) {
+				cond = Match_Pass;
+			}
+		}
+
+		conditions.emplace_back(cond | opFlag);
 	}
 
-	// Expect defined word
-	size_t lenDefine = lex_expect(m_p, m_pEnd, ELexType::Word);
+	// Perform AND conditions first
+	for (int i = (int)conditions.size() - 1; i >= 1; i--) {
+		if (conditions[i] & Match_OpAnd) {
+			if ((conditions[i] & Match_Pass) && (conditions[i - 1] & Match_Pass)) {
+				conditions[i - 1] |= Match_Pass;
+			} else {
+				conditions[i - 1] &= ~Match_Pass;
+			}
+			conditions.erase(conditions.begin() + i);
+		}
+	}
 
-	char* wordDefine = (char*)alloca(lenDefine + 1);
-	memcpy(wordDefine, m_p, lenDefine);
-	wordDefine[lenDefine] = '\0';
+	// Perform OR conditions last
+	for (int i = (int)conditions.size() - 1; i >= 1; i--) {
+		if (conditions[i] & Match_OpOr) {
+			if ((conditions[i] & Match_Pass) || (conditions[i - 1] & Match_Pass)) {
+				conditions[i - 1] |= Match_Pass;
+			} else {
+				conditions[i - 1] &= ~Match_Pass;
+			}
+			conditions.erase(conditions.begin() + i);
+		}
+	}
 
-	m_p += lenDefine;
-
-	// Expect end of line
-	expect_eol();
-
-	// Check if word is defined
-	return (has_define(wordDefine) == mustEqual);
+	// Now there should only be 1 condition left
+	CCPP_ASSERT(conditions.size() == 1);
+	return (conditions[0] & Match_Pass);
 }
 
 void ccpp::processor::expect_eol()
