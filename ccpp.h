@@ -70,6 +70,7 @@
 
 #include <vector>
 #include <stack>
+#include <functional>
 #include <cstdint>
 
 namespace ccpp
@@ -78,6 +79,9 @@ namespace ccpp
 
 	class processor
 	{
+		typedef std::function<bool(const char* path)> include_callback_t;
+		typedef std::function<bool(const char* command, const char* value)> command_callback_t;
+
 	private:
 		char* m_p;
 		char* m_pEnd;
@@ -88,6 +92,9 @@ namespace ccpp
 		std::vector<const char*> m_defines;
 		std::stack<uint32_t> m_stack;
 
+		include_callback_t m_includeCallback;
+		command_callback_t m_commandCallback;
+
 	public:
 		processor();
 		~processor();
@@ -96,6 +103,9 @@ namespace ccpp
 		void remove_define(const char* name);
 
 		bool has_define(const char* name);
+
+		void set_include_callback(const include_callback_t &callback);
+		void set_command_callback(const command_callback_t &callback);
 
 		void process(char* buffer);
 		void process(char* buffer, size_t len);
@@ -128,6 +138,7 @@ enum class ELexType
 	Newline,
 	Word,
 	Operator,
+	String,
 };
 
 static const char* lex_type_name(ELexType type)
@@ -137,6 +148,7 @@ static const char* lex_type_name(ELexType type)
 	case ELexType::Newline: return "NEWLINE";
 	case ELexType::Word: return "WORD";
 	case ELexType::Operator: return "OPERATOR";
+	case ELexType::String: return "STRING";
 	}
 	return "NONE";
 }
@@ -147,37 +159,53 @@ static size_t lex(char* p, char* pEnd, ELexType &type)
 
 	char* pStart = p;
 
-	while (p < pEnd) {
-		char c = *p;
-		bool isWhitespace = (c == ' ' || c == '\t' || c == '\r');
-		bool isNewline = (c == '\n');
-		bool isAlphaNum = ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_');
-		bool isOperator = (c == '!' || c == '&' || c == '|' || c == '(' || c == ')');
+	if (*p == '\n') {
+		type = ELexType::Newline;
+		p++;
 
-		if (type == ELexType::None) {
-			if (isWhitespace) {
-				type = ELexType::Whitespace;
-			} else if (isNewline) {
-				type = ELexType::Newline;
+	} else if (*p == '"') {
+		type = ELexType::String;
+
+		while (p < pEnd) {
+			p++;
+			if (*p == '\\') {
+				// Skip next character
 				p++;
-				break;
-			} else if (isAlphaNum) {
-				type = ELexType::Word;
-			} else if (isOperator) {
-				type = ELexType::Operator;
-			}
-
-		} else {
-			if (type == ELexType::Whitespace && !isWhitespace) {
-				break;
-			} else if (type == ELexType::Word && !isAlphaNum) {
-				break;
-			} else if (type == ELexType::Operator && !isOperator) {
+			} else if (*p == '"') {
+				// End of string
+				p++;
 				break;
 			}
 		}
 
-		p++;
+	} else {
+		while (p < pEnd) {
+			char c = *p;
+			bool isWhitespace = (c == ' ' || c == '\t' || c == '\r');
+			bool isAlphaNum = ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_');
+			bool isOperator = (c == '!' || c == '&' || c == '|' || c == '(' || c == ')');
+
+			if (type == ELexType::None) {
+				if (isWhitespace) {
+					type = ELexType::Whitespace;
+				} else if (isAlphaNum) {
+					type = ELexType::Word;
+				} else if (isOperator) {
+					type = ELexType::Operator;
+				}
+
+			} else {
+				if (type == ELexType::Whitespace && !isWhitespace) {
+					break;
+				} else if (type == ELexType::Word && !isAlphaNum) {
+					break;
+				} else if (type == ELexType::Operator && !isOperator) {
+					break;
+				}
+			}
+
+			p++;
+		}
 	}
 
 	return p - pStart;
@@ -261,6 +289,16 @@ bool ccpp::processor::has_define(const char* name)
 		}
 	}
 	return false;
+}
+
+void ccpp::processor::set_include_callback(const include_callback_t &callback)
+{
+	m_includeCallback = callback;
+}
+
+void ccpp::processor::set_command_callback(const command_callback_t &callback)
+{
+	m_commandCallback = callback;
 }
 
 void ccpp::processor::process(char* buffer)
@@ -492,11 +530,90 @@ void ccpp::processor::process(char* buffer, size_t len)
 				// Pop from stack
 				m_stack.pop();
 
+			} else if (!strcmp(wordCommand, "include")) {
+				// #include <path>
+
+				if (isErasing) {
+					// Just consume the line if we're erasing
+					consume_line();
+
+				} else {
+					if (m_includeCallback == nullptr) {
+						// If no callback is set up, just consume the line
+						CCPP_ERROR("No include callback set up for #include on line %d", (int)m_line);
+						consume_line();
+
+					} else {
+						// Expect some whitespace
+						size_t lenCommandWhitespace = lex_expect(m_p, m_pEnd, ELexType::Whitespace);
+						if (lenCommandWhitespace == 0) {
+							continue;
+						}
+						m_p += lenCommandWhitespace;
+
+						// Expect a string
+						size_t lenPath = lex_expect(m_p, m_pEnd, ELexType::String);
+						if (lenPath == 0) {
+							continue;
+						}
+
+						char* path = (char*)alloca(lenPath);
+						memcpy(path, m_p + 1, lenPath - 2);
+						path[lenPath - 2] = '\0';
+
+						m_p += lenPath;
+
+						// Run callback
+						if (!m_includeCallback(path)) {
+							CCPP_ERROR("Failed to include \"%s\" on line %d", path, (int)m_line);
+						}
+
+						// Expect end of line
+						expect_eol();
+					}
+				}
+
 			} else {
-				CCPP_ERROR("Unrecognized preprocessor command \"%s\" on line %d", wordCommand, (int)m_line);
+				// Unknown command, it can be handled by the callback, or throw an error
+				bool commandFound = false;
+				int line = (int)m_line;
+
+				char* commandValueStart = m_p;
 
 				// Consume until end of line
 				consume_line();
+
+				// Handle if not erasing
+				if (!isErasing) {
+					// See if there is a custom command callback
+					if (m_commandCallback != nullptr) {
+						ELexType typeCommandValue;
+						size_t lenCommandValue = lex(commandValueStart, m_pEnd, typeCommandValue);
+
+						if (typeCommandValue == ELexType::Whitespace) {
+							// Handle potential whitespace
+							commandValueStart += lenCommandValue;
+							lenCommandValue = lex(commandValueStart, m_pEnd, typeCommandValue);
+						}
+
+						if (typeCommandValue == ELexType::Newline) {
+							// If end of line, there's no command value
+							commandFound = m_commandCallback(wordCommand, nullptr);
+
+						} else {
+							// If not end of line yet, there's some value
+							char* commandValue = (char*)alloca(lenCommandValue + 1);
+							memcpy(commandValue, commandValueStart, lenCommandValue);
+							commandValue[lenCommandValue] = '\0';
+
+							commandFound = m_commandCallback(wordCommand, commandValue);
+						}
+					}
+
+					if (!commandFound) {
+						CCPP_ERROR("Unrecognized preprocessor command \"%s\" on line %d", wordCommand, line);
+					}
+				}
 			}
 
 			overwrite(commandStart, m_p - commandStart);
@@ -507,8 +624,10 @@ void ccpp::processor::process(char* buffer, size_t len)
 bool ccpp::processor::test_condition()
 {
 	//TODO:
+	// !
 	// &&
 	// ||
+	// ()
 
 	// Expect defined word
 	size_t lenDefine = lex_expect(m_p, m_pEnd, ELexType::Word);
