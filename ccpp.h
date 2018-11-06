@@ -97,6 +97,7 @@ namespace ccpp
 
 	public:
 		processor();
+		processor(const processor &copy);
 		~processor();
 
 		void add_define(const char* name);
@@ -245,6 +246,16 @@ enum
 
 ccpp::processor::processor()
 {
+	m_p = nullptr;
+	m_pEnd = nullptr;
+}
+
+ccpp::processor::processor(const processor &copy)
+	: processor()
+{
+	for (const char* p : copy.m_defines) {
+		add_define(p);
+	}
 }
 
 ccpp::processor::~processor()
@@ -307,6 +318,11 @@ void ccpp::processor::process(char* buffer)
 
 void ccpp::processor::process(char* buffer, size_t len)
 {
+	if (m_p != nullptr) {
+		CCPP_ERROR("Illegal attempt of preprocessor usage while not finished preprocessing!");
+		return;
+	}
+
 	m_line = 1;
 	m_column = 0;
 
@@ -618,6 +634,9 @@ void ccpp::processor::process(char* buffer, size_t len)
 			overwrite(commandStart, m_p - commandStart);
 		}
 	}
+
+	m_p = nullptr;
+	m_pEnd = nullptr;
 }
 
 bool ccpp::processor::test_condition()
