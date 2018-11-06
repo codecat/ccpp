@@ -643,10 +643,25 @@ void ccpp::processor::process(char* buffer, size_t len)
 bool ccpp::processor::test_condition()
 {
 	//TODO:
-	// !
 	// &&
 	// ||
 	// ()
+
+	bool mustEqual = true;
+
+	ELexType type;
+	size_t len = lex(m_p, m_pEnd, type);
+
+	if (type == ELexType::Operator) {
+		// If there's an operator, check which it is
+		if (*m_p == '!') {
+			// "Not" operator negates the condition
+			mustEqual = false;
+		}
+
+		// Continue reading
+		m_p += len;
+	}
 
 	// Expect defined word
 	size_t lenDefine = lex_expect(m_p, m_pEnd, ELexType::Word);
@@ -661,7 +676,7 @@ bool ccpp::processor::test_condition()
 	expect_eol();
 
 	// Check if word is defined
-	return has_define(wordDefine);
+	return (has_define(wordDefine) == mustEqual);
 }
 
 void ccpp::processor::expect_eol()
