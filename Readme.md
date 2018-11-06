@@ -13,27 +13,27 @@ The following directives are currently supported:
 
 ## Example usage:
 ```cpp
-	static char* read_file() { /* ... */ }
+static char* read_file() { /* ... */ }
 
-	int main()
-	{
-		// Read contents of file "SomeFile.txt" into "buffer"
-		char* buffer = read_file("SomeFile.txt");
+int main()
+{
+  // Read contents of file "SomeFile.txt" into "buffer"
+  char* buffer = read_file("SomeFile.txt");
 
-		// Create a preprocessor
-		ccpp::processor p;
+  // Create a preprocessor
+  ccpp::processor p;
 
-		// Add some definitions
-		p.add_define("SOME_DEFINE");
+  // Add some definitions
+  p.add_define("SOME_DEFINE");
 
-		// Begin processing
-		p.process(buffer, size);
+  // Begin processing
+  p.process(buffer, size);
 
-		// Dump output
-		printf("%s\n", buffer);
+  // Dump output
+  printf("%s\n", buffer);
 
-		return 0;
-	}
+  return 0;
+}
 ```
 
 ## Motivation
