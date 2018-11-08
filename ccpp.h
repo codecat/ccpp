@@ -128,7 +128,7 @@ namespace ccpp
 #include <malloc.h>
 
 #ifndef CCPP_ERROR
-#define CCPP_ERROR(error, ...) printf("[CCPP ERROR] " error "\n", __VA_ARGS__)
+#define CCPP_ERROR(error, ...) printf("[CCPP ERROR] " error "\n", ##__VA_ARGS__)
 #endif
 
 #ifndef CCPP_ASSERT
