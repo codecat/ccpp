@@ -180,12 +180,27 @@ static size_t lex(char* p, char* pEnd, ELexType &type)
 		}
 
 	} else {
+		bool haveNewlineR = false;
+		bool haveNewlineN = false;
+
 		while (p < pEnd) {
 			char c = *p;
 			bool isWhitespace = (c == ' ' || c == '\t');
 			bool isNewline = (c == '\r' || c == '\n');
 			bool isAlphaNum = ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_');
 			bool isOperator = (c == '!' || c == '&' || c == '|' || c == '(' || c == ')');
+
+			if (isNewline) {
+				// Only handle 1 newline at a time, which can be any combination of \r and \n
+				if (c == '\r') {
+					if (haveNewlineR) break;
+					haveNewlineR = true;
+				}
+				if (c == '\n') {
+					if (haveNewlineN) break;
+					haveNewlineN = true;
+				}
+			}
 
 			if (type == ELexType::None) {
 				if (isWhitespace) {
@@ -693,6 +708,8 @@ bool ccpp::processor::test_condition()
 		m_p += lex_next(m_p, m_pEnd, type, &symStart, &symLength);
 
 		if (type == ELexType::Newline) {
+			m_line++;
+			m_column = 0;
 			break;
 		}
 
