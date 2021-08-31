@@ -756,11 +756,11 @@ bool ccpp::processor::test_condition()
 			if (*symStart == '!') {
 				mustEqual = false;
 
-			} else if (!strncmp(symStart, "&&", symLength)) {
+			} else if (symLength == 2 && !strncmp(symStart, "&&", symLength)) {
 				opFlag = Match_OpAnd;
 				continue;
 
-			} else if (!strncmp(symStart, "||", symLength)) {
+			} else if (symLength == 2 && !strncmp(symStart, "||", symLength)) {
 				opFlag = Match_OpOr;
 				continue;
 
