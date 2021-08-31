@@ -158,6 +158,15 @@ static const char* lex_type_name(ELexType type)
 	return "NONE";
 }
 
+static void lex_char_text(char c, char* buffer, size_t size)
+{
+	if (isalnum(c)) {
+		snprintf(buffer, size, "%c", c);
+		return;
+	}
+	snprintf(buffer, size, "\\x%02X", (int)c);
+}
+
 static size_t lex(char* p, char* pEnd, ELexType &type)
 {
 	type = ELexType::None;
@@ -238,7 +247,9 @@ static size_t lex_expect(char* p, char* pEnd, ELexType expected_type)
 	size_t len = lex(p, pEnd, type);
 
 	if (type != expected_type) {
-		CCPP_ERROR("Unexpected '%c' of type %s, was expecting a %s", *p, lex_type_name(type), lex_type_name(expected_type));
+		char buffer[16];
+		lex_char_text(*p, buffer, sizeof(buffer));
+		CCPP_ERROR("Unexpected '%s' of type %s, was expecting a %s", buffer, lex_type_name(type), lex_type_name(expected_type));
 		return 0;
 	}
 
