@@ -10,15 +10,18 @@ The following directives are currently supported:
 * `#elif <condition>`
 * `#else`
 * `#endif`
+* `#include` (via `set_include_callback`)
+* Other arbitrary directives (via `set_command_callback`)
 
 ## Example usage:
 ```cpp
-static char* read_file() { /* ... */ }
+static char* read_file(const char* path, size_t* out_size) { /* ... */ }
 
 int main()
 {
   // Read contents of file "SomeFile.txt" into "buffer"
-  char* buffer = read_file("SomeFile.txt");
+  size_t size;
+  char* buffer = read_file("SomeFile.txt", &size);
 
   // Create a preprocessor
   ccpp::processor p;
