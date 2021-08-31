@@ -701,6 +701,11 @@ void ccpp::processor::process(char* buffer, size_t len)
 		}
 	}
 
+	// If there's something left in the stack, there are unclosed commands (missing #endif etc.)
+	if (m_stack.size() > 0) {
+		CCPP_ERROR("%d preprocessor scope(s) left unclosed at end of file (did you forget \"#endif\"?)", (int)m_stack.size());
+	}
+
 	m_p = nullptr;
 	m_pEnd = nullptr;
 }
