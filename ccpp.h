@@ -128,11 +128,15 @@ namespace ccpp
 #include <malloc.h>
 
 #ifndef CCPP_ERROR
-#define CCPP_ERROR(error, ...) printf("[CCPP ERROR] " error "\n", ##__VA_ARGS__)
+#  define CCPP_ERROR(error, ...) printf("[CCPP ERROR] " error "\n", ##__VA_ARGS__)
 #endif
 
 #ifndef CCPP_ASSERT
-#define CCPP_ASSERT(cond) if (!(cond)) { CCPP_ERROR("Assertion failed: '%s' on line %d", #cond, __LINE__); }
+#  if defined(_DEBUG)
+#    define CCPP_ASSERT(cond) if (!(cond)) { CCPP_ERROR("Assertion failed: '%s' on line %d", #cond, __LINE__); }
+#  else
+#    define CCPP_ASSERT(cond)
+#  endif
 #endif
 
 enum class ELexType
