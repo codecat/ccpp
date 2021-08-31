@@ -814,6 +814,9 @@ bool ccpp::processor::test_condition()
 
 	// Now there should only be 1 condition left
 	CCPP_ASSERT(conditions.size() == 1);
+	if (conditions.size() != 1) {
+		return false;
+	}
 	return (conditions[0] & Match_Pass);
 }
 
