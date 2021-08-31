@@ -765,7 +765,10 @@ bool ccpp::processor::test_condition()
 				continue;
 
 			} else {
-				CCPP_ERROR("Unexpected operator '%c' in condition on line %d", *symStart, (int)m_line);
+				char* operatorText = (char*)alloca(symLength + 1);
+				memcpy(operatorText, symStart, symLength);
+				operatorText[symLength] = '\0';
+				CCPP_ERROR("Unexpected operator '%s' in condition on line %d", operatorText, (int)m_line);
 			}
 			m_p += lex_next(m_p, m_pEnd, type, &symStart, &symLength);
 		}
