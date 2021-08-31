@@ -819,6 +819,11 @@ bool ccpp::processor::test_condition()
 
 void ccpp::processor::expect_eol()
 {
+	// Consider the end of the string as end of line too
+	if (m_p == m_pEnd) {
+		return;
+	}
+
 	if (lex_expect(m_p, m_pEnd, ELexType::Newline) == 0) {
 		return;
 	}
