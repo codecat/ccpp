@@ -571,6 +571,11 @@ void ccpp::processor::process(char* buffer, size_t len)
 					// Just consume the line if we're deep
 					consume_line();
 
+				} else if (m_stack.size() == 0) {
+					// If the stack is empty, this is an invalid command
+					CCPP_ERROR("Unexpected #elif on line %d", (int)m_line);
+					consume_line();
+
 				} else {
 					// Get top of stack
 					uint32_t &top = m_stack.top();
