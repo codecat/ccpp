@@ -605,11 +605,18 @@ void ccpp::processor::process(char* buffer, size_t len)
 			} else if (!strcmp(wordCommand, "endif")) {
 				// #endif
 
-				// Expect end of line
-				expect_eol();
+				if (m_stack.size() == 0) {
+					// If the stack is empty, this is an invalid command
+					CCPP_ERROR("Unexpected #endif on line %d", (int)m_line);
+					consume_line();
 
-				// Pop from stack
-				m_stack.pop();
+				} else {
+					// Expect end of line
+					expect_eol();
+
+					// Pop from stack
+					m_stack.pop();
+				}
 
 			} else if (!strcmp(wordCommand, "include")) {
 				// #include <path>
