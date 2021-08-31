@@ -308,6 +308,9 @@ ccpp::processor::processor(const processor &copy)
 	for (const char* p : copy.m_defines) {
 		add_define(p);
 	}
+
+	m_includeCallback = copy.m_includeCallback;
+	m_commandCallback = copy.m_commandCallback;
 }
 
 ccpp::processor::~processor()
