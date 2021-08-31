@@ -719,10 +719,15 @@ bool ccpp::processor::test_condition()
 		if (type == ELexType::Operator) {
 			if (*symStart == '!') {
 				mustEqual = false;
+
 			} else if (!strncmp(symStart, "&&", symLength)) {
 				opFlag = Match_OpAnd;
+				continue;
+
 			} else if (!strncmp(symStart, "||", symLength)) {
 				opFlag = Match_OpOr;
+				continue;
+
 			} else {
 				CCPP_ERROR("Unexpected operator '%c' in condition on line %d", *symStart, (int)m_line);
 			}
